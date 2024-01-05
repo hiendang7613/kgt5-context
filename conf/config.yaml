@@ -1,6 +1,6 @@
 
 dataset:
-  name: wikidata5m
+  name: wikidata5m_v3
 
   # use original KGT5 without context
   v1: False
