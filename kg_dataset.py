@@ -311,11 +311,19 @@ class Hop1Index:
         start = self.key_to_start[item]
         end = self.key_to_end[item]
         context = self.triples[start:end, [1, 2]]
+        if len(context) > self.max_context_size:
+          ids = np.random.choice(len(context), self.max_context_size, replace=False)
+          context = context[ids]
         if self.shuffle:
-            context = np.copy(context)
+            # context = np.copy(context)
             np.random.shuffle(context)
-        if end - start > self.max_context_size:
-            context = context[:self.max_context_size]
+        # if end - start > self.max_context_size:
+            # context = context[:self.max_context_size]
+        return context
+
+    def get(self, item):
+        return self[item]
+
         return context
 
     def get(self, item):
