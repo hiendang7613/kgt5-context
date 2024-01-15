@@ -25,24 +25,27 @@ class KGCDataset(Dataset):
         #     self.dataset_name
         # )
         import torch
-        self.ent_aliases = torch.load('/content/kgt5-context/ent_tokenized_data.pt')
+        # self.ent_aliases = torch.load('/content/kgt5-context/ent_tokenized_data.pt')
         self.rel_aliases = torch.load('/content/kgt5-context/rel_tokenized_data.pt')
-        self.num_entities = len(self.ent_aliases)
+        # self.num_entities = len(self.ent_aliases)
         self.num_relations = len(self.rel_aliases)
         print("loading triples")
         self.triples = dict()
         for split in ["train", "valid", "test"]:
             self.triples[split] = self.load_triples_with_rev(split)
+        print("loading triples")
         if self.config.valid.tiny:
             self.triples["valid_tiny"] = self.load_triples_with_rev("valid_tiny")
         self.data = self.get_split(self.split)
 
+        print("loading extend rel aliases")
         # extend rel aliases
-        rev_rel_aliases = dict()
-        for rid, relation in self.rel_aliases.items():
-            rev_rel_aliases[rid + self.num_relations] = f"Reverse of {relation}"
-        self.rel_aliases.update(rev_rel_aliases)
-
+        rev_rel_aliases = []
+        for rid, relation in enumerate(self.rel_aliases):
+            rev_rel_aliases.append(f"Reverse of {relation}")
+        self.rel_aliases.extend(rev_rel_aliases)
+        
+        print("loading ...")
         self.use_desc = self.config.descriptions.use
         if self.use_desc:
             print("loading descriptions")
