@@ -25,8 +25,8 @@ class KGCDataset(Dataset):
         #     self.dataset_name
         # )
         import torch
-        ent_tokenized_data = torch.load('/content/kgt5-context/ent_tokenized_data.pt')
-        rel_aliases = torch.load('/content/kgt5-context/rel_tokenized_data.pt')
+        self.ent_aliases = torch.load('/content/kgt5-context/ent_tokenized_data.pt')
+        self.rel_aliases = torch.load('/content/kgt5-context/rel_tokenized_data.pt')
         self.num_entities = len(self.ent_aliases)
         self.num_relations = len(self.rel_aliases)
         print("loading triples")
