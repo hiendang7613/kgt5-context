@@ -36,8 +36,8 @@ class KGCDataset(Dataset):
         # print("loading triples")
         # if self.config.valid.tiny:
         #     self.triples["valid_tiny"] = self.load_triples_with_rev("valid_tiny")
-        # self.data = self.get_split(self.split)
         self.triples = torch.load('/content/kgt5-context/triples.pt')
+        self.data = self.get_split(self.split)
 
 
         print("loading extend rel aliases")
