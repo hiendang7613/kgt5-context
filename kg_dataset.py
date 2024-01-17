@@ -30,13 +30,15 @@ class KGCDataset(Dataset):
         self.num_entities = len(self.ent_aliases)
         self.num_relations = len(self.rel_aliases)
         print("loading triples")
-        self.triples = dict()
-        for split in ["train", "valid", "test"]:
-            self.triples[split] = self.load_triples_with_rev(split)
-        print("loading triples")
-        if self.config.valid.tiny:
-            self.triples["valid_tiny"] = self.load_triples_with_rev("valid_tiny")
-        self.data = self.get_split(self.split)
+        # self.triples = dict()
+        # for split in ["train", "valid", "test"]:
+        #     self.triples[split] = self.load_triples_with_rev(split)
+        # print("loading triples")
+        # if self.config.valid.tiny:
+        #     self.triples["valid_tiny"] = self.load_triples_with_rev("valid_tiny")
+        # self.data = self.get_split(self.split)
+        self.triples = torch.load('/content/kgt5-context/triples.pt')
+
 
         print("loading extend rel aliases")
         # extend rel aliases
