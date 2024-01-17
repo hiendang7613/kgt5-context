@@ -7,7 +7,7 @@ from tqdm import tqdm
 from collections import defaultdict
 from torch.utils.data import Dataset
 from typing import Dict, Optional, Union, Tuple, List
-
+import torch
 
 class KGCDataset(Dataset):
     def __init__(self, config, split="train"):
@@ -38,6 +38,8 @@ class KGCDataset(Dataset):
         #     self.triples["valid_tiny"] = self.load_triples_with_rev("valid_tiny")
         self.triples = torch.load('/content/kgt5-context/triples.pt')
         self.data = self.get_split(self.split)
+        self.sep = torch.tensor([1820])
+        self.newline = torch.tensor([32089])
 
 
         print("loading extend rel aliases")
@@ -186,14 +188,15 @@ class KGCContextDataset(KGCDataset):
     def create_query_string(self, triple, split=None):
         if split is None:
             split = self.split
-        sep = " | "
-        if self.is_legacy:
-            sep = "|"
         if random.random() >= self.drop_subject_percentage:
-            source = 'query: ' + self.ent_aliases[triple[0]] + sep + self.rel_aliases[
-                triple[1]] + '\n'
+            source = torch.cat(
+                torch.tensor([11417, 10]),
+                self.ent_aliases[triple[0]],
+                self.sep,
+                self.rel_aliases[triple[1]],
+                self.newline)
         else:
-            source = 'query: ' + self.drop_mask_token + sep + self.rel_aliases[
+            source = 'query: ' + self.drop_mask_token + self.sep + self.rel_aliases[
                 triple[1]] + '\n'
         if self.use_desc:
             source += f" {self.description_separator} {self.ent_descriptions[triple[0]]} "
