@@ -240,19 +240,18 @@ class KGCContextDataset(KGCDataset):
             source = self.create_query_string_no_context(triple, split=split)
             return source, target
         source.append(self.context_tokens)
+        len_source = sum([s.shape[0] for s in source])
         context_size = 0
-        for p, o in context_list[:self.max_context_size]:
+        for p, o in context_list:
             if p == triple[1] and o == triple[2]:
                 continue
             p = trun_pad(self.rel_aliases[p])
             o = trun_pad(self.ent_aliases[o])
-            source.extend([
-              self.context_separator,
-              p, self.sep, o
-            ])
-            context_size += 1
-            if context_size > self.max_context_size:
-                break
+            next_context = torch.cat([self.context_separator, p, self.sep, o])
+            if len_source + next_context.shape[0] > 512:
+              break
+            len_source += next_context.shape[0]
+            source.append(next_context)
         return source, target
 
     def __getitem__(self, idx):
