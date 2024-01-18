@@ -17,6 +17,7 @@ def _tokenize( x):
     return tokenizer(x, return_tensors="pt")['input_ids'][0][:-1]
 
 def trun_pad(x):
+  return x
   idx = x.nonzero()
   max_len = idx[:, 0].max() + 1
   return x[:max_len]
@@ -238,8 +239,6 @@ class KGCContextDataset(KGCDataset):
         else:
             source = self.create_query_string_no_context(triple, split=split)
             return source, target
-        print('create_query_string' )
-        print(source)
         source.append(self.context_tokens)
         context_size = 0
         for p, o in context_list[:self.max_context_size]:
@@ -254,8 +253,6 @@ class KGCContextDataset(KGCDataset):
             context_size += 1
             if context_size > self.max_context_size:
                 break
-        print('source')
-        print(source)
         return source, target
 
     def __getitem__(self, idx):
@@ -353,7 +350,7 @@ class Hop1Index:
             # context = np.copy(context)
             np.random.shuffle(context)
         # if end - start > self.max_context_size:
-            # context = context[:self.max_context_size]
+        # context = context[:self.max_context_size]
         return context
 
     def get(self, item):
