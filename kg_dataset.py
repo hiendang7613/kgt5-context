@@ -9,6 +9,18 @@ from torch.utils.data import Dataset
 from typing import Dict, Optional, Union, Tuple, List
 import torch
 
+from transformers import T5TokenizerFast
+
+tokenizer = T5TokenizerFast.from_pretrained('t5-small',use_fast=True)
+
+def _tokenize( x):
+    return tokenizer(x, return_tensors="pt")['input_ids'][0][:-1]
+
+def trun_pad(x):
+  idx = x.nonzero()
+  max_len = idx[:, 0].max() + 1
+  return x[:max_len]
+
 class KGCDataset(Dataset):
     def __init__(self, config, split="train"):
         self.config = config
@@ -38,22 +50,22 @@ class KGCDataset(Dataset):
         #     self.triples["valid_tiny"] = self.load_triples_with_rev("valid_tiny")
         self.triples = torch.load('/content/kgt5-context/triples.pt')
         self.data = self.get_split(self.split)
-        self.sep = torch.tensor([1820])
-        self.newline = torch.tensor([32089])
+        self.sep = _tokenize('|')
+        self.newline = _tokenize('<extra_id_10>')
+        self.query_tokens = _tokenize('<extra_id_10>')
+        self.context_tokens = _tokenize('context:')
 
 
-        print("loading extend rel aliases")
         # extend rel aliases
         rev_rel_aliases = []
         for rid, relation in enumerate(self.rel_aliases):
             rev_rel_aliases.append(f"Reverse of {relation}")
         self.rel_aliases.extend(rev_rel_aliases)
         
-        print("loading ...")
         self.use_desc = self.config.descriptions.use
         if self.use_desc:
             print("loading descriptions")
-            self.description_separator = "<extra_id_96>"
+            self.description_separator = _tokenize("<extra_id_96>")
             self.ent_descriptions = self.load_descriptions(self.dataset_name)
 
         self._filter_dict = None
@@ -159,11 +171,11 @@ class KGCContextDataset(KGCDataset):
         super().__init__(config=config, split=split)
         self.max_context_size = self.config.context.max_size
         self.use_context = self.config.context.use
-        self.context_separator = "<extra_id_98>"
+        self.context_separator = _tokenize("<extra_id_98>")
         if self.is_legacy:
             self.context_separator = "\n"
-        self.drop_mask_token = "<extra_id_99>"
-        self.context_hop_separator = "<extra_id_97>"
+        self.drop_mask_token = _tokenize("<extra_id_99>")
+        self.context_hop_separator = _tokenize("<extra_id_97>")
         print("creating neighborhood indexes")
         self.hop1_index = Hop1Index(
             self.config, self.get_split("train"), self.num_entities
@@ -189,15 +201,19 @@ class KGCContextDataset(KGCDataset):
         if split is None:
             split = self.split
         if random.random() >= self.drop_subject_percentage:
-            source = torch.cat(
-                torch.tensor([11417, 10]),
-                self.ent_aliases[triple[0]],
+            source = [
+                self.query_tokens,
+                trun_pad(self.ent_aliases[triple[0]]),
                 self.sep,
                 self.rel_aliases[triple[1]],
-                self.newline)
+                self.newline]
         else:
-            source = 'query: ' + self.drop_mask_token + self.sep + self.rel_aliases[
-                triple[1]] + '\n'
+            source = [
+                self.query_tokens,
+                self.drop_mask_token,
+                self.sep,
+                self.rel_aliases[triple[1]],
+                self.newline]
         if self.use_desc:
             source += f" {self.description_separator} {self.ent_descriptions[triple[0]]} "
         return source
@@ -205,34 +221,41 @@ class KGCContextDataset(KGCDataset):
     def create_query_string_no_context(self, triple, split=None):
         if split is None:
             split = self.split
-        sep = " | "
-        if self.is_legacy:
-            sep = "|"
-        source = 'query: ' + self.ent_aliases[triple[0]] + sep + self.rel_aliases[
-                triple[1]] + ' | '
+        
+        source.extend([
+          self.query_tokens,
+          self.ent_aliases[triple[0]],
+          self.sep,
+          self.rel_aliases[triple[1]],
+          self.sep])
         return source
 
     def triple_context_to_source_target(self, triple, context_list, split=None):
-        sep = " | "
-        if self.is_legacy:
-            sep = "|"
-        target = self.ent_aliases[triple[2]]
+        
+        target = trun_pad(self.ent_aliases[triple[2]])
         if self.use_context:
             source = self.create_query_string(triple, split=split)
         else:
             source = self.create_query_string_no_context(triple, split=split)
             return source, target
-        source += 'context:'
+        print('create_query_string' )
+        print(source)
+        source.append(self.context_tokens)
         context_size = 0
         for p, o in context_list[:self.max_context_size]:
             if p == triple[1] and o == triple[2]:
                 continue
-            p = self.rel_aliases[p]
-            o = self.ent_aliases[o]
-            source += f"{self.context_separator} {p}{sep}{o}"
+            p = trun_pad(self.rel_aliases[p])
+            o = trun_pad(self.ent_aliases[o])
+            source.extend([
+              self.context_separator,
+              p, self.sep, o
+            ])
             context_size += 1
             if context_size > self.max_context_size:
                 break
+        print('source')
+        print(source)
         return source, target
 
     def __getitem__(self, idx):
@@ -244,6 +267,7 @@ class KGCContextDataset(KGCDataset):
         source, target = self.triple_context_to_source_target(
             triple, context_list, split=split
         )
+        source = torch.cat(source)
         is_tail_pred = triple[1] < self.num_relations
         output = {
             "input": source,
@@ -257,8 +281,8 @@ class KGCContextDataset(KGCDataset):
 class KGCV1Dataset(KGCDataset):
     def __init__(self, config, split):
         super().__init__(config=config, split=split)
-        self.tail_pred_token = "<extra_id_55>"
-        self.head_pred_token = "<extra_id_56>"
+        self.tail_pred_token = _tokenize("<extra_id_55>")
+        self.head_pred_token = _tokenize("<extra_id_56>")
 
     def get_source_and_target(self, triple):
         is_reverse = triple[1] >= self.num_relations
