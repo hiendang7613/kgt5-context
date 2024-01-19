@@ -155,7 +155,7 @@ class KGCDataset(Dataset):
         filter_dict = defaultdict(list)
         for split in splits:
             print("creating filter dict for split", split)
-            for triple in tqdm(self.get_split(split).tolist()):
+            for triple in tqdm(self.get_split(split)):
                 filter_dict[(triple[0], triple[1])].append(self.ent_aliases[triple[2]])
         return filter_dict
 
@@ -233,19 +233,24 @@ class KGCContextDataset(KGCDataset):
             source = self.create_query_string_no_context(triple, split=split)
             return source, target
         source.append(self.context_tokens)
+        len_source = sum([s.shape[0] for s in source])
+      
         context_size = 0
-        for p, o in context_list[:self.max_context_size]:
+        for p, o in context_list:
             if p == triple[1] and o == triple[2]:
                 continue
             p = trun_pad(self.rel_aliases[p])
             o = trun_pad(self.ent_aliases[o])
-            source.extend([
-              self.context_separator,
-              p, self.sep, o
-            ])
-            context_size += 1
-            if context_size > self.max_context_size:
+            next_context = [
+                self.context_separator,
+                p, self.sep, o
+            ]
+            len_next_context = sum([s.shape[0] for s in next_context])
+            if len_source + len_next_context > self.config.model.max_input_length:
                 break
+            source.extend(next_context)
+            len_source += len_next_context
+            
         return source, target
 
     def __getitem__(self, idx):
