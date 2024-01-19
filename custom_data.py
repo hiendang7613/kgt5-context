@@ -4,8 +4,8 @@ from omegaconf import DictConfig
 from transformers import AutoTokenizer, T5TokenizerFast
 
 from kg_dataset import KGCDataset, SplitDatasetWrapper
-
-
+import torch
+import torch.nn.functional as F
 class NbhoodDataModule(pl.LightningDataModule):
     def __init__(self, config: DictConfig, split="train"):
         super().__init__()
@@ -50,35 +50,48 @@ class NbhoodDataModule(pl.LightningDataModule):
             max_length=self.max_input_sequence_length,
             return_tensors="pt"
         )
-        
+
     def _collate_fn(self, batch):
-        inputs_tokenized = self._tokenize([b["input"] for b in batch])
-        targets_tokenized = self._tokenize([b["target"] for b in batch])
-        input_ids, attention_mask = inputs_tokenized.input_ids, inputs_tokenized.attention_mask
-        labels = targets_tokenized.input_ids
-        # for labels, set -100 for padding
-        labels[labels == self.pad_token_id] = -100
-        output = {
+        input_ids = [ t['input'] for t in batch ]
+        labels = [ t['target'] for t in batch ]
+        queries = [ t['query'] for t in batch ]
+        is_tail_pred = [ t['is_tail_pred'] for t in batch ]
+        input_ids = torch.nn.utils.rnn.pad_sequence(input_ids, batch_first=True)
+        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True)
+        labels[labels == 0] = -100
+        #.to(device)
+        if input_ids.size(1) < self.max_input_sequence_length:
+          input_ids = F.pad(input_ids, (0, self.max_input_sequence_length - input_ids.size(1)))
+        attention_mask = (input_ids != 0)
+
+        return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "labels": labels,
-        }
-        return output
-
-    def _collate_fn_eval(self, batch):
-        inputs_tokenized = self._tokenize([b["input"] for b in batch])
-        targets = [b["target"] for b in batch]
-        queries = [b["query"] for b in batch]
-        is_tail_pred = [b["is_tail_pred"] for b in batch]
-        input_ids, attention_mask = inputs_tokenized.input_ids, inputs_tokenized.attention_mask
-        output = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "targets": targets,
             "queries": queries,
             "is_tail_pred": is_tail_pred,
         }
-        return output
+
+    def _collate_fn_eval(self, batch):
+        input_ids = [ t['input'] for t in batch ]
+        labels = [ t['target'] for t in batch ]
+        queries = [ t['query'] for t in batch ]
+        is_tail_pred = [ t['is_tail_pred'] for t in batch ]
+        input_ids = torch.nn.utils.rnn.pad_sequence(input_ids, batch_first=True)
+        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True)
+        labels[labels == 0] = -100
+        #.to(device)
+        if input_ids.size(1) < self.max_input_sequence_length:
+          input_ids = F.pad(input_ids, (0, self.max_input_sequence_length - input_ids.size(1)))
+        attention_mask = (input_ids != 0)
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "targets": labels,
+            "queries": queries,
+            "is_tail_pred": is_tail_pred,
+        }
 
     def _common_dataloader(self, dataset, batch_size=32, shuffle=False, collate="_collate_fn"):
         data_loader = DataLoader(
@@ -98,10 +111,10 @@ class NbhoodDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         return self._common_dataloader(
-            self.valid_dataset, batch_size=self.config.eval.batch_size, collate="_collate_fn_eval"
+            self.valid_dataset, batch_size=self.config.eval.batch_size, collate="_collate_fn"
         )
 
     def test_dataloader(self):
         return self._common_dataloader(
-            self.test_dataset, batch_size=self.config.eval.batch_size, collate="_collate_fn_eval"
+            self.test_dataset, batch_size=self.config.eval.batch_size, collate="_collate_fn"
         )
