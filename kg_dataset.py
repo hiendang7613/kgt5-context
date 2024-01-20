@@ -17,7 +17,6 @@ def _tokenize( x):
     return tokenizer(x, return_tensors="pt")['input_ids'][0][:-1]
 
 def trun_pad(x):
-  return x
   idx = x.nonzero()
   max_len = idx[:, 0].max() + 1
   return x[:max_len]
@@ -216,12 +215,10 @@ class KGCContextDataset(KGCDataset):
         if split is None:
             split = self.split
         
-        source.extend([
-          self.query_tokens,
-          self.ent_aliases[triple[0]],
+        source = [
+          trun_pad(self.ent_aliases[triple[0]]),
           self.sep,
-          self.rel_aliases[triple[1]],
-          self.sep])
+          self.rel_aliases[triple[1]]]
         return source
 
     def triple_context_to_source_target(self, triple, context_list, split=None):
@@ -258,7 +255,8 @@ class KGCContextDataset(KGCDataset):
 
     def get(self, idx: int, split: str = "train") -> Dict:
         triple = self.triples[split][idx]
-        context_list = self.get_context(triple[0], triple[1], triple[2])
+        # context_list = self.get_context(triple[0], triple[1], triple[2])
+        context_list = None
         source, target = self.triple_context_to_source_target(
             triple, context_list, split=split
         )
