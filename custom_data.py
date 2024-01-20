@@ -54,22 +54,18 @@ class NbhoodDataModule(pl.LightningDataModule):
     def _collate_fn(self, batch):
         input_ids = [ t['input'] for t in batch ]
         labels = [ t['target'] for t in batch ]
-        queries = [ t['query'] for t in batch ]
-        is_tail_pred = [ t['is_tail_pred'] for t in batch ]
         input_ids = torch.nn.utils.rnn.pad_sequence(input_ids, batch_first=True)
         labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True)
         labels[labels == 0] = -100
         #.to(device)
-        if input_ids.size(1) < self.max_input_sequence_length:
-          input_ids = F.pad(input_ids, (0, self.max_input_sequence_length - input_ids.size(1)))
+        # if input_ids.size(1) < self.max_input_sequence_length:
+          # input_ids = F.pad(input_ids, (0, self.max_input_sequence_length - input_ids.size(1)))
         attention_mask = (input_ids != 0)
 
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "labels": labels,
-            "queries": queries,
-            "is_tail_pred": is_tail_pred,
         }
 
     def _collate_fn_eval(self, batch):
@@ -105,10 +101,10 @@ class NbhoodDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         return self._common_dataloader(
-            self.valid_dataset, batch_size=self.config.eval.batch_size, collate="_collate_fn"
+            self.valid_dataset, batch_size=self.config.eval.batch_size, collate="_collate_fn_eval"
         )
 
     def test_dataloader(self):
         return self._common_dataloader(
-            self.test_dataset, batch_size=self.config.eval.batch_size, collate="_collate_fn"
+            self.test_dataset, batch_size=self.config.eval.batch_size, collate="_collate_fn_eval"
         )
